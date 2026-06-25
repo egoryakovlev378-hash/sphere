@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Сфера партнёров — тест</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; background: #000; overflow: hidden; }
+  .psphere {
+    position: relative;
+    width: 100%;
+    height: 100vh;
+    cursor: grab;
+    background: #000;
+  }
+  .psphere:active { cursor: grabbing; }
+  .psphere canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+    background: #000;
+    touch-action: pan-y;
+    -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 12%, #000 88%, transparent 100%);
+            mask-image: linear-gradient(to bottom, transparent 0%, #000 12%, #000 88%, transparent 100%);
+  }
+</style>
+</head>
+<body>
+
+<div class="psphere" id="psRoot"><canvas id="psCanvas"></canvas></div>
+
+<script>
+(function(){
+  /* ── ПАРТНЁРЫ: новые URL из галереи Тильды (T603, rec2381376803) ── */
+  /* noGray:true — лого уже содержит встроенный ЧБ, фильтр не применяем */
+  var PARTNERS = [
+    {name:'Агробелогорье',        img:'https://static.tildacdn.net/tild3035-3830-4465-b931-313035613463/-.png',          noGray:true},
+    {name:'Биоэнерго',            img:'https://static.tildacdn.net/tild3835-3132-4937-b930-333935666231/bio.png',           tileScale:2},
+    {name:'БСПБ',                 img:'https://static.tildacdn.net/tild3333-3031-4131-a361-663839613936/bspb.png'},
+    {name:'EFS',                  img:'https://static.tildacdn.net/tild6365-3438-4538-b364-313139343334/efs.png'},
+    {name:'ФКИ-ДВ',               img:'https://static.tildacdn.net/tild6664-3266-4638-b030-633637323065/fki-dv.png'},
+    {name:'Лого6',                img:'https://static.tildacdn.net/tild3939-6530-4131-a330-336337356264/photo.png',       noGray:true},
+    {name:'КВН',                  img:'https://static.tildacdn.net/tild3463-6337-4731-a634-396232353138/kvn.png'},
+    {name:'Металлинвестбанк',     img:'https://static.tildacdn.net/tild6466-3962-4138-b835-666331343531/metallinvestbank.png'},
+    {name:'ПФКИ',                 img:'https://static.tildacdn.net/tild3130-6666-4462-b466-623362313838/photo.png'},
+    {name:'РТС-тендер',           img:'https://static.tildacdn.net/tild3135-3633-4330-b936-306333656638/rts-tender.png'},
+    {name:'Территория смыслов',   img:'https://static.tildacdn.net/tild6333-6661-4638-a663-346633616331/territoria-smyslov.png'},
+    {name:'ТЖСЧ',                 img:'https://static.tildacdn.net/tild6462-3839-4233-b633-323466343361/tzhs.png'},
+    {name:'ВКонтакте',            img:'https://static.tildacdn.net/tild3862-3265-4466-a462-666261343932/_.png',           noGray:true},
+    {name:'Яндекс',               img:'https://static.tildacdn.net/tild6666-3937-4536-a666-613236333962/_.png',           noGray:true},
+    {name:'Машук',                img:'https://static.tildacdn.net/tild3761-3131-4131-b863-343766633933/___.png'},
+    {name:'Норникель',            img:'https://static.tildacdn.net/tild6633-6630-4238-b762-316537616164/photo.png',       noGray:true},
+    {name:'Пермский край',        img:'https://static.tildacdn.net/tild3731-3931-4363-b232-316565376262/photo.png',       noGray:true},
+    {name:'Росмолодёжь',          img:'https://static.tildacdn.net/tild6132-6234-4332-b535-316134623262/_.png',            tileScale:2, maxAspect:2.5},
+    {name:'Сахалинская область',  img:'https://static.tildacdn.net/tild3462-3931-4831-a337-623831613838/photo.png',       noGray:true},
+    {name:'Тамбовская область',   img:'https://static.tildacdn.net/tild6232-3831-4064-a133-313737613565/photo.png',       noGray:true},
+    {name:'Татнефть',             img:'https://static.tildacdn.net/tild6233-3532-4039-a263-656266356234/photo.png',       noGray:true},
+    {name:'Эр-Телеком',           img:'https://static.tildacdn.net/tild3264-3763-4131-b332-313564316234/_.png',           noGray:true},
+    {name:'Лого23',               img:'https://static.tildacdn.net/tild3461-3531-4435-a237-346261383233/_.png',           noGray:true},
+    {name:'Парма',                img:'https://static.tildacdn.net/tild6532-3330-4366-b362-326634383434/Parma_FC_logo_1.png', noGray:true}
+  ];
+
+  /* ── НАСТРОЙКИ: уменьшили radius и увеличили tileH → лого ближе друг к другу ── */
+  var CFG = {
+    radius:   1.6,    /* -20% → лого ближе друг к другу */
+    tileH:    0.88,   /* +10% → всё чуть крупнее */
+    rotSpeed: 0.0036
+  };
+
+  /* Находит реальный bounding box непрозрачных пикселей (убирает пустые поля PNG) */
+  function getBoundingBox(imageData, W, H){
+    var data=imageData.data, THRESH=12;
+    var minX=W, minY=H, maxX=0, maxY=0;
+    for(var y=0;y<H;y++){
+      for(var x=0;x<W;x++){
+        if(data[(y*W+x)*4+3]>THRESH){
+          if(x<minX)minX=x; if(x>maxX)maxX=x;
+          if(y<minY)minY=y; if(y>maxY)maxY=y;
+        }
+      }
+    }
+    if(minX>maxX||minY>maxY) return {w:W,h:H};
+    return {w:maxX-minX+1, h:maxY-minY+1};
+  }
+
+  /* Рисует img на canvas, при noGray=false — ЧБ фильтр.
+     Возвращает {canvas, bbW, bbH} — реальные размеры контента без прозрачных полей. */
+  function processImage(img, noGray){
+    var W=img.naturalWidth||512, H=img.naturalHeight||512;
+    var c=document.createElement('canvas'); c.width=W; c.height=H;
+    var ctx=c.getContext('2d'); ctx.drawImage(img,0,0,W,H);
+    var raw=ctx.getImageData(0,0,W,H);
+    var bb=getBoundingBox(raw,W,H);
+    if(!noGray){
+      var px=raw.data;
+      for(var i=0;i<px.length;i+=4){
+        var g=Math.min(255, 0.299*px[i]+0.587*px[i+1]+0.114*px[i+2]);
+        g=Math.min(255, g*1.6+30);
+        px[i]=px[i+1]=px[i+2]=g;
+      }
+      ctx.putImageData(raw,0,0);
+    }
+    return {canvas:c, bbW:bb.w, bbH:bb.h};
+  }
+
+  function makeParticleTex(){
+    var c=document.createElement('canvas'); c.width=c.height=64;
+    var ctx=c.getContext('2d');
+    var g=ctx.createRadialGradient(32,32,0,32,32,32);
+    g.addColorStop(0,'rgba(255,255,255,1)');
+    g.addColorStop(0.4,'rgba(255,255,255,0.6)');
+    g.addColorStop(1,'rgba(0,0,0,0)');
+    ctx.fillStyle=g; ctx.fillRect(0,0,64,64); return c;
+  }
+
+  function makeAuraTex(){
+    var c=document.createElement('canvas'); c.width=c.height=256;
+    var ctx=c.getContext('2d');
+    var g=ctx.createRadialGradient(128,128,30,128,128,128);
+    g.addColorStop(0,'rgba(150,180,255,0.55)');
+    g.addColorStop(0.45,'rgba(90,120,220,0.20)');
+    g.addColorStop(1,'rgba(0,0,0,0)');
+    ctx.fillStyle=g; ctx.fillRect(0,0,256,256); return c;
+  }
+
+  function gradientPoint(rMin,rMax){
+    for(var a=0;a<30;a++){
+      var r=rMin+Math.random()*(rMax-rMin);
+      var t=Math.random()*Math.PI*2, ph=Math.acos(2*Math.random()-1);
+      var x=r*Math.sin(ph)*Math.cos(t),y=r*Math.sin(ph)*Math.sin(t),z=r*Math.cos(ph);
+      var ny=y/r, bias=Math.pow((1-ny)*0.5,1.6);
+      if(Math.random()<bias) return [x,y,z];
+    }
+    return [0,0,0];
+  }
+
+  function start(){
+    var THREE=window.THREE;
+    var root=document.getElementById('psRoot');
+    var canvas=document.getElementById('psCanvas');
+    var W=root.clientWidth, H=root.clientHeight;
+
+    var vw=window.innerWidth||W;
+    var IS_PHONE  = vw<=600 || /Mobi|Android|iPhone|iPod/i.test(navigator.userAgent);
+    var IS_TABLET = !IS_PHONE && vw<=1024;
+    var Q         = IS_PHONE ? 0.4 : (IS_TABLET ? 0.65 : 1);
+    var DPRCAP    = IS_PHONE ? 1.5 : 2;
+    var REDUCED   = (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
+    var AUTO      = REDUCED ? 0.0008 : CFG.rotSpeed;
+    function qn(n){ return Math.max(40, Math.round(n*Q)); }
+
+    var renderer=new THREE.WebGLRenderer({canvas:canvas,alpha:true,antialias:!IS_PHONE});
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio||1, DPRCAP));
+    renderer.setSize(W,H,false);
+
+    var scene=new THREE.Scene();
+    var camera=new THREE.PerspectiveCamera(42,W/H,0.1,200);
+
+    function fitCamera(){
+      camera.aspect=W/H;
+      var need=CFG.radius*2*1.28;
+      var t=Math.tan(camera.fov*Math.PI/360);
+      var dH=(need/2)/t, dW=(need/2)/(t*camera.aspect);
+      camera.position.set(0,0,Math.max(dH,dW)+0.4);
+      camera.updateProjectionMatrix();
+    }
+    fitCamera();
+
+    var ptTex=new THREE.CanvasTexture(makeParticleTex());
+
+    /* аура */
+    var aura=new THREE.Sprite(new THREE.SpriteMaterial({
+      map:new THREE.CanvasTexture(makeAuraTex()),
+      transparent:true, opacity:0.16, depthWrite:false, blending:THREE.AdditiveBlending
+    }));
+    aura.scale.set(CFG.radius*4.6,CFG.radius*4.6,1);
+    aura.position.set(0,0,-0.5);
+    scene.add(aura);
+
+    /* звёзды — дальние */
+    var sg=new THREE.BufferGeometry(), SN=qn(3500), sp=[];
+    for(var i=0;i<SN;i++){ var pt=gradientPoint(14,48); sp.push(pt[0],pt[1],pt[2]); }
+    sg.setAttribute('position',new THREE.Float32BufferAttribute(sp,3));
+    var starsMesh=new THREE.Points(sg,new THREE.PointsMaterial({
+      color:0xffffff,size:0.07,sizeAttenuation:true,transparent:true,opacity:0.85,depthWrite:false
+    }));
+    scene.add(starsMesh);
+
+    /* крупные светящиеся */
+    var gg=new THREE.BufferGeometry(), GN=qn(900), gp=[];
+    for(var i=0;i<GN;i++){ var pt=gradientPoint(8,20); gp.push(pt[0],pt[1],pt[2]); }
+    gg.setAttribute('position',new THREE.Float32BufferAttribute(gp,3));
+    var glowMesh=new THREE.Points(gg,new THREE.PointsMaterial({
+      map:ptTex,color:0xffffff,size:0.22,sizeAttenuation:true,
+      transparent:true,opacity:0.65,depthWrite:false,alphaTest:0.01
+    }));
+    scene.add(glowMesh);
+
+    /* колышущиеся */
+    var FN=qn(600), fpos=[], fbase=[];
+    for(var i=0;i<FN;i++){ var pt=gradientPoint(4,11); fpos.push(pt[0],pt[1],pt[2]); fbase.push(pt[0],pt[1],pt[2]); }
+    var fg=new THREE.BufferGeometry();
+    var fposArr=new Float32Array(fpos);
+    fg.setAttribute('position',new THREE.BufferAttribute(fposArr,3));
+    var floatMesh=new THREE.Points(fg,new THREE.PointsMaterial({
+      map:ptTex,color:0xffffff,size:0.20,sizeAttenuation:true,
+      transparent:true,opacity:0.70,depthWrite:false,alphaTest:0.01
+    }));
+    scene.add(floatMesh);
+
+    /* пыль */
+    var bg2=new THREE.BufferGeometry(), BN=qn(1200), bp=[];
+    for(var i=0;i<BN;i++){ var pt=gradientPoint(5,16); bp.push(pt[0],pt[1],pt[2]); }
+    bg2.setAttribute('position',new THREE.Float32BufferAttribute(bp,3));
+    var dustMesh=new THREE.Points(bg2,new THREE.PointsMaterial({
+      color:0xffffff,size:0.04,sizeAttenuation:true,transparent:true,opacity:0.9,depthWrite:false
+    }));
+    scene.add(dustMesh);
+
+    /* кольца */
+    var ringGeo=new THREE.TorusGeometry(CFG.radius*1.08,0.004,2,160);
+    var ring1=new THREE.Mesh(ringGeo,new THREE.MeshBasicMaterial({color:0x2244aa,transparent:true,opacity:0.18}));
+    ring1.rotation.x=Math.PI/2; scene.add(ring1);
+    var ring2=new THREE.Mesh(ringGeo.clone(),new THREE.MeshBasicMaterial({color:0x1133aa,transparent:true,opacity:0.12}));
+    ring2.rotation.z=Math.PI/3; scene.add(ring2);
+
+    /* шар логотипов */
+    var group=new THREE.Group(); scene.add(group);
+    var list=PARTNERS.filter(function(p){return p.img;});
+    var N=Math.max(list.length,1), tiles=[], golden=Math.PI*(3-Math.sqrt(5));
+
+    list.forEach(function(p,i){
+      /* POLE_GAP=0.82 — лого не размещаются на самих полюсах (±top ~35°) */
+      var POLE_GAP=0.82;
+      var y=POLE_GAP-(i/(N-1||1))*POLE_GAP*2;
+      var rad=Math.sqrt(Math.max(0,1-y*y)), th=golden*i;
+      var pos=new THREE.Vector3(Math.cos(th)*rad,y,Math.sin(th)*rad).multiplyScalar(CFG.radius);
+      var tile=new THREE.Group();
+      tile.position.copy(pos); tile.lookAt(pos.clone().multiplyScalar(2));
+      tile.userData.normal=pos.clone().normalize();
+      group.add(tile); tiles.push(tile);
+      (function(tile){
+        var img=new Image(); img.crossOrigin='anonymous';
+        img.onload=function(){
+          var res=processImage(img, p.noGray);
+          var tex=new THREE.CanvasTexture(res.canvas);
+          tex.minFilter=THREE.LinearFilter;
+          /* Нормализуем: максимальный размер реального контента = TARGET */
+          var TARGET=CFG.tileH * (p.tileScale||1);
+          var rAsp=res.bbW/res.bbH;
+          /* maxAspect — ограничение ширины (сжимает слишком широкие горизонтальные лого) */
+          if(p.maxAspect && rAsp>p.maxAspect) rAsp=p.maxAspect;
+          var tW, tH;
+          if(res.bbW>=res.bbH){ tW=TARGET; tH=TARGET/rAsp; }
+          else                 { tH=TARGET; tW=TARGET*rAsp; }
+          var lm=new THREE.MeshBasicMaterial({map:tex,transparent:true,depthWrite:false});
+          tile.add(new THREE.Mesh(new THREE.PlaneGeometry(tW,tH),lm));
+          tile.userData.logo=lm;
+        };
+        img.src=p.img;
+      })(tile);
+    });
+
+    /* drag: горизонталь + вертикаль */
+    var dragging=false,lastX=0,lastY=0,userRotX=0;
+    root.addEventListener('pointerdown',function(e){dragging=true;lastX=e.clientX;lastY=e.clientY;});
+    window.addEventListener('pointerup',function(){dragging=false;});
+    window.addEventListener('pointermove',function(e){
+      if(!dragging)return;
+      group.rotation.y+=(e.clientX-lastX)*0.005;
+      userRotX+=(e.clientY-lastY)*0.005;
+      userRotX=Math.max(-1.2,Math.min(1.2,userRotX));
+      lastX=e.clientX; lastY=e.clientY;
+    });
+    var slow=false;
+    root.addEventListener('mouseenter',function(){slow=true;});
+    root.addEventListener('mouseleave',function(){slow=false;});
+
+    /* пауза когда блок вне экрана */
+    var visible=true, running=false;
+    if('IntersectionObserver' in window){
+      new IntersectionObserver(function(es){
+        visible=es[0].isIntersecting;
+        if(visible && !running){ running=true; requestAnimationFrame(render); }
+      },{threshold:0.01}).observe(root);
+    }
+
+    var tmp=new THREE.Vector3(), camDir=new THREE.Vector3(), clock=0;
+    function render(ts){
+      if(!visible){ running=false; return; }
+      running=true; clock=ts*0.001;
+      if(!dragging){ group.rotation.y+=slow?AUTO*0.25:AUTO; }
+      group.rotation.x=userRotX+Math.sin(clock*0.1)*0.08;
+      starsMesh.rotation.y+=0.00025; starsMesh.rotation.x+=0.00008;
+      glowMesh.rotation.y-=0.00015;
+      dustMesh.rotation.y+=0.0001; dustMesh.rotation.z+=0.00005;
+      ring1.rotation.y+=0.001; ring2.rotation.x+=0.0007;
+      if(!REDUCED){
+        var posA=floatMesh.geometry.attributes.position;
+        for(var i=0;i<FN;i++){
+          var bx=fbase[i*3],by=fbase[i*3+1],bz=fbase[i*3+2];
+          var wave=Math.sin(clock*0.6+i*0.4)*0.13+Math.cos(clock*0.4+i*0.3)*0.08;
+          fposArr[i*3]=bx+wave*0.3; fposArr[i*3+1]=by+wave*0.25; fposArr[i*3+2]=bz+wave*0.15;
+        }
+        posA.needsUpdate=true;
+      }
+      for(var i=0;i<tiles.length;i++){
+        var tile=tiles[i];
+        var wn=tile.userData.normal.clone().applyQuaternion(group.quaternion);
+        tile.getWorldPosition(tmp); camDir.copy(camera.position).sub(tmp).normalize();
+        var op=Math.max(0,Math.min(1,(wn.dot(camDir)+0.1)/0.6));
+        if(tile.userData.logo) tile.userData.logo.opacity=op;
+        var sc=0.82+0.18*op; tile.scale.set(sc,sc,sc); tile.visible=op>0.02;
+      }
+      renderer.render(scene,camera);
+      requestAnimationFrame(render);
+    }
+    requestAnimationFrame(render);
+
+    /* resize */
+    var rt;
+    window.addEventListener('resize',function(){
+      clearTimeout(rt);
+      rt=setTimeout(function(){
+        W=root.clientWidth; H=root.clientHeight;
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio||1, DPRCAP));
+        renderer.setSize(W,H,false);
+        fitCamera();
+      },120);
+    });
+  }
+
+  if(window.THREE){ start(); }
+  else{
+    var s=document.createElement('script');
+    s.src='https://cdn.jsdelivr.net/npm/three@0.134.0/build/three.min.js';
+    s.onload=start;
+    document.head.appendChild(s);
+  }
+})();
+</script>
+
+</body>
+</html>
