@@ -37,12 +37,12 @@
   var PARTNERS = [
     {name:'Агробелогорье',        img:'https://static.tildacdn.net/tild3035-3830-4465-b931-313035613463/-.png',          noGray:true},
     {name:'Биоэнерго',            img:'https://static.tildacdn.net/tild3835-3132-4937-b930-333935666231/bio.png',           tileScale:2},
-    {name:'БСПБ',                 img:'https://static.tildacdn.net/tild3333-3031-4131-a361-663839613936/bspb.png'},
-    {name:'EFS',                  img:'https://static.tildacdn.net/tild6365-3438-4538-b364-313139343334/efs.png'},
+    {name:'БСПБ',                 img:'https://static.tildacdn.net/tild3333-3031-4131-a361-663839613936/bspb.png', extraWhite: true},
+    {name:'EFS',                  img:'https://static.tildacdn.net/tild6365-3438-4538-b364-313139343334/efs.png', extraWhite: true},
     {name:'ФКИ-ДВ',               img:'https://static.tildacdn.net/tild6664-3266-4638-b030-633637323065/fki-dv.png'},
     {name:'Лого6',                img:'https://static.tildacdn.net/tild3939-6530-4131-a330-336337356264/photo.png',       noGray:true},
     {name:'КВН',                  img:'https://static.tildacdn.net/tild3463-6337-4731-a634-396232353138/kvn.png'},
-    {name:'Металлинвестбанк',     img:'https://static.tildacdn.net/tild6466-3962-4138-b835-666331343531/metallinvestbank.png'},
+    {name:'Металлинвестбанк',     img:'https://static.tildacdn.net/tild6466-3962-4138-b835-666331343531/metallinvestbank.png', extraWhite: true},
     {name:'ПФКИ',                 img:'https://static.tildacdn.net/tild3130-6666-4462-b466-623362313838/photo.png'},
     {name:'РТС-тендер',           img:'https://static.tildacdn.net/tild3135-3633-4330-b936-306333656638/rts-tender.png'},
     {name:'Территория смыслов',   img:'https://static.tildacdn.net/tild6333-6661-4638-a663-346633616331/territoria-smyslov.png'},
@@ -86,7 +86,7 @@
 
   /* Рисует img на canvas, при noGray=false — ЧБ фильтр.
      Возвращает {canvas, bbW, bbH} — реальные размеры контента без прозрачных полей. */
-  function processImage(img, noGray){
+  function processImage(img, noGray, extraWhite){ // Добавили параметр extraWhite
     var W=img.naturalWidth||512, H=img.naturalHeight||512;
     var c=document.createElement('canvas'); c.width=W; c.height=H;
     var ctx=c.getContext('2d'); ctx.drawImage(img,0,0,W,H);
@@ -96,7 +96,17 @@
       var px=raw.data;
       for(var i=0;i<px.length;i+=4){
         var g=Math.min(255, 0.299*px[i]+0.587*px[i+1]+0.114*px[i+2]);
-        g = 180 + (g / 255) * 75;
+        
+        if (extraWhite) {
+            // Для проблемных логотипов: инвертируем (чёрное станет белым)
+            g = 255 - g; 
+            // Либо, если нужна просто сильная яркость, закомментируй строку выше и раскомментируй нижнюю:
+            // g = 220 + (g / 255) * 35;
+        } else {
+            // Для всех остальных оставляем как было (или твою текущую формулу)
+            g = Math.min(255, g*1.6+30);
+        }
+        
         px[i]=px[i+1]=px[i+2]=g;
       }
       ctx.putImageData(raw,0,0);
@@ -243,7 +253,7 @@
       (function(tile){
         var img=new Image(); img.crossOrigin='anonymous';
         img.onload=function(){
-          var res=processImage(img, p.noGray);
+          var res=processImage(img, p.noGray, p.extraWhite); // Добавили p.extraWhite
           var tex=new THREE.CanvasTexture(res.canvas);
           tex.minFilter=THREE.LinearFilter;
           /* Нормализуем: максимальный размер реального контента = TARGET */
