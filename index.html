@@ -6,15 +6,13 @@
 <title>Сфера партнёров — тест</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  html, body { 
-    position: fixed; /* КРИТИЧНО ДЛЯ IOS IFRAME */
-    top: 0; left: 0; width: 100%; height: 100%; 
-    background: #000; overflow: hidden; 
-  }
+  html, body { width: 100%; height: 100%; background: #000; overflow: hidden; }
   .psphere {
-    position: absolute;
-    top: 0; left: 0; right: 0; bottom: 0;
-    cursor: grab; background: #000;
+    position: relative;
+    width: 100%;
+    height: 100%;
+    cursor: grab;
+    background: #000;
   }
   .psphere:active { cursor: grabbing; }
   .psphere canvas {
@@ -151,8 +149,7 @@
     var THREE=window.THREE;
     var root=document.getElementById('psRoot');
     var canvas=document.getElementById('psCanvas');
-    var W = root.clientWidth || window.innerWidth;
-    var H = root.clientHeight || window.innerHeight;
+    var W=root.clientWidth, H=root.clientHeight;
 
     var vw=window.innerWidth||W;
     var IS_PHONE  = vw<=600 || /Mobi|Android|iPhone|iPod/i.test(navigator.userAgent);
@@ -164,8 +161,15 @@
     function qn(n){ return Math.max(40, Math.round(n*Q)); }
 
     var renderer=new THREE.WebGLRenderer({canvas:canvas,alpha:true,antialias:!IS_PHONE});
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio||1, DPRCAP));
-    renderer.setSize(W,H,false);
+
+    /* applySize: пересчитывает буфер ПОД реальный размер контейнера.
+       updateStyle=true → CSS-размер canvas синхронен с буфером (убирает растяжение на iOS) */
+    function applySize(){
+      W=root.clientWidth; H=root.clientHeight;
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio||1, DPRCAP));
+      renderer.setSize(W,H,true);
+    }
+    applySize();
 
     var scene=new THREE.Scene();
     var camera=new THREE.PerspectiveCamera(42,W/H,0.1,200);
@@ -299,6 +303,10 @@
     function render(ts){
       if(!visible){ running=false; return; }
       running=true; clock=ts*0.001;
+      /* iOS досчитывает размер контейнера ПОСЛЕ старта — ловим расхождение на лету */
+      if(root.clientWidth!==W || root.clientHeight!==H){
+        applySize(); fitCamera();
+      }
       if(!dragging){ group.rotation.y+=slow?AUTO*0.25:AUTO; }
       group.rotation.x=userRotX+Math.sin(clock*0.1)*0.08;
       starsMesh.rotation.y+=0.00025; starsMesh.rotation.x+=0.00008;
@@ -327,15 +335,16 @@
     }
     requestAnimationFrame(render);
 
+    /* Контрольные пересчёты: iOS Safari/Chrome финализируют размер iframe
+       с задержкой — повторяем applySize в нескольких точках после старта */
+    [60, 250, 600, 1200].forEach(function(ms){
+      setTimeout(function(){ applySize(); fitCamera(); }, ms);
+    });
+
     var rt;
     window.addEventListener('resize',function(){
       clearTimeout(rt);
-      rt=setTimeout(function(){
-        W=root.clientWidth || window.innerWidth; H=root.clientHeight || window.innerHeight;
-        renderer.setPixelRatio(Math.min(window.devicePixelRatio||1, DPRCAP));
-        renderer.setSize(W,H,false);
-        fitCamera();
-      },120);
+      rt=setTimeout(function(){ applySize(); fitCamera(); },120);
     });
   }
 
