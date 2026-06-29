@@ -37,12 +37,12 @@
   var PARTNERS = [
     {name:'Агробелогорье',        img:'https://static.tildacdn.net/tild3035-3830-4465-b931-313035613463/-.png',          noGray:true},
     {name:'Биоэнерго',            img:'https://static.tildacdn.net/tild3835-3132-4937-b930-333935666231/bio.png',           tileScale:2},
-    {name:'БСПБ',                 img:'https://static.tildacdn.net/tild3333-3031-4131-a361-663839613936/bspb.png', extraWhite: true},
-    {name:'EFS',                  img:'https://static.tildacdn.net/tild6365-3438-4538-b364-313139343334/efs.png', extraWhite: true},
+    {name:'БСПБ',                 img:'https://static.tildacdn.net/tild3333-3031-4131-a361-663839613936/bspb.png'},
+    {name:'EFS',                  img:'https://static.tildacdn.net/tild6365-3438-4538-b364-313139343334/efs.png'},
     {name:'ФКИ-ДВ',               img:'https://static.tildacdn.net/tild6664-3266-4638-b030-633637323065/fki-dv.png'},
     {name:'Лого6',                img:'https://static.tildacdn.net/tild3939-6530-4131-a330-336337356264/photo.png',       noGray:true},
     {name:'КВН',                  img:'https://static.tildacdn.net/tild3463-6337-4731-a634-396232353138/kvn.png'},
-    {name:'Металлинвестбанк',     img:'https://static.tildacdn.net/tild6466-3962-4138-b835-666331343531/metallinvestbank.png', extraWhite: true},
+    {name:'Металлинвестбанк',     img:'https://static.tildacdn.net/tild6466-3962-4138-b835-666331343531/metallinvestbank.png'},
     {name:'ПФКИ',                 img:'https://static.tildacdn.net/tild3130-6666-4462-b466-623362313838/photo.png'},
     {name:'РТС-тендер',           img:'https://static.tildacdn.net/tild3135-3633-4330-b936-306333656638/rts-tender.png'},
     {name:'Территория смыслов',   img:'https://static.tildacdn.net/tild6333-6661-4638-a663-346633616331/territoria-smyslov.png'},
@@ -61,14 +61,14 @@
     {name:'Парма',                img:'https://optim.tildacdn.net/tild6538-6639-4537-b032-303430656635/-/format/webp/photo.png.webp', noGray:true}
   ];
 
-  /* ── НАСТРОЙКИ: уменьшили radius и увеличили tileH → лого ближе друг к другу ── */
+  /* ── НАСТРОЙКИ ── */
   var CFG = {
-    radius:   1.6,    /* -20% → лого ближе друг к другу */
-    tileH:    0.88,   /* +10% → всё чуть крупнее */
+    radius:   1.6,
+    tileH:    0.88,
     rotSpeed: 0.0036
   };
 
-  /* Находит реальный bounding box непрозрачных пикселей (убирает пустые поля PNG) */
+  /* Находит реальный bounding box непрозрачных пикселей */
   function getBoundingBox(imageData, W, H){
     var data=imageData.data, THRESH=12;
     var minX=W, minY=H, maxX=0, maxY=0;
@@ -84,9 +84,8 @@
     return {w:maxX-minX+1, h:maxY-minY+1};
   }
 
-  /* Рисует img на canvas, при noGray=false — ЧБ фильтр.
-     Возвращает {canvas, bbW, bbH} — реальные размеры контента без прозрачных полей. */
-  function processImage(img, noGray, extraWhite){ // Добавили параметр extraWhite
+  /* Grayscale + автоинверсия тёмных логотипов → все становятся ярко белыми */
+  function processImage(img, noGray){
     var W=img.naturalWidth||512, H=img.naturalHeight||512;
     var c=document.createElement('canvas'); c.width=W; c.height=H;
     var ctx=c.getContext('2d'); ctx.drawImage(img,0,0,W,H);
@@ -94,20 +93,21 @@
     var bb=getBoundingBox(raw,W,H);
     if(!noGray){
       var px=raw.data;
+      /* Проход 1: считаем среднюю яркость непрозрачных пикселей */
+      var sum=0, cnt=0;
       for(var i=0;i<px.length;i+=4){
-        var g=Math.min(255, 0.299*px[i]+0.587*px[i+1]+0.114*px[i+2]);
-        
-        if (extraWhite) {
-            // Для проблемных логотипов: инвертируем (чёрное станет белым)
-            g = 255 - g; 
-            // Либо, если нужна просто сильная яркость, закомментируй строку выше и раскомментируй нижнюю:
-            // g = 220 + (g / 255) * 35;
-        } else {
-            // Для всех остальных оставляем как было (или твою текущую формулу)
-            g = Math.min(255, g*1.6+30);
+        if(px[i+3]>12){
+          sum+=0.299*px[i]+0.587*px[i+1]+0.114*px[i+2];
+          cnt++;
         }
-        
-        px[i]=px[i+1]=px[i+2]=g;
+      }
+      /* Если среднее < 128 — логотип тёмный, нужна инверсия */
+      var dark=(cnt>0 ? sum/cnt : 255) < 128;
+      /* Проход 2: grayscale + инверсия тёмных + усиление яркости */
+      for(var i=0;i<px.length;i+=4){
+        var g=0.299*px[i]+0.587*px[i+1]+0.114*px[i+2];
+        if(dark) g=255-g;
+        px[i]=px[i+1]=px[i+2]=Math.min(255, g*1.8+25);
       }
       ctx.putImageData(raw,0,0);
     }
@@ -241,7 +241,6 @@
     var N=Math.max(list.length,1), tiles=[], golden=Math.PI*(3-Math.sqrt(5));
 
     list.forEach(function(p,i){
-      /* POLE_GAP=0.82 — лого не размещаются на самих полюсах (±top ~35°) */
       var POLE_GAP=0.82;
       var y=POLE_GAP-(i/(N-1||1))*POLE_GAP*2;
       var rad=Math.sqrt(Math.max(0,1-y*y)), th=golden*i;
@@ -253,13 +252,11 @@
       (function(tile){
         var img=new Image(); img.crossOrigin='anonymous';
         img.onload=function(){
-          var res=processImage(img, p.noGray, p.extraWhite); // Добавили p.extraWhite
+          var res=processImage(img, p.noGray);
           var tex=new THREE.CanvasTexture(res.canvas);
           tex.minFilter=THREE.LinearFilter;
-          /* Нормализуем: максимальный размер реального контента = TARGET */
           var TARGET=CFG.tileH * (p.tileScale||1);
           var rAsp=res.bbW/res.bbH;
-          /* maxAspect — ограничение ширины (сжимает слишком широкие горизонтальные лого) */
           if(p.maxAspect && rAsp>p.maxAspect) rAsp=p.maxAspect;
           var tW, tH;
           if(res.bbW>=res.bbH){ tW=TARGET; tH=TARGET/rAsp; }
@@ -272,7 +269,7 @@
       })(tile);
     });
 
-    /* drag: горизонталь + вертикаль */
+    /* drag */
     var dragging=false,lastX=0,lastY=0,userRotX=0;
     root.addEventListener('pointerdown',function(e){dragging=true;lastX=e.clientX;lastY=e.clientY;});
     window.addEventListener('pointerup',function(){dragging=false;});
@@ -287,7 +284,6 @@
     root.addEventListener('mouseenter',function(){slow=true;});
     root.addEventListener('mouseleave',function(){slow=false;});
 
-    /* пауза когда блок вне экрана */
     var visible=true, running=false;
     if('IntersectionObserver' in window){
       new IntersectionObserver(function(es){
@@ -328,7 +324,6 @@
     }
     requestAnimationFrame(render);
 
-    /* resize */
     var rt;
     window.addEventListener('resize',function(){
       clearTimeout(rt);
