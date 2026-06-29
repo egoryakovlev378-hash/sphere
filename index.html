@@ -10,7 +10,7 @@
   .psphere {
     position: relative;
     width: 100%;
-    height: 100vh;
+    height: 100%;
     cursor: grab;
     background: #000;
   }
@@ -149,7 +149,8 @@
     var THREE=window.THREE;
     var root=document.getElementById('psRoot');
     var canvas=document.getElementById('psCanvas');
-    var W=root.clientWidth, H=root.clientHeight;
+    var W = root.clientWidth || window.innerWidth;
+    var H = root.clientHeight || window.innerHeight;
 
     var vw=window.innerWidth||W;
     var IS_PHONE  = vw<=600 || /Mobi|Android|iPhone|iPod/i.test(navigator.userAgent);
@@ -328,7 +329,7 @@
     window.addEventListener('resize',function(){
       clearTimeout(rt);
       rt=setTimeout(function(){
-        W=root.clientWidth; H=root.clientHeight;
+        W=root.clientWidth || window.innerWidth; H=root.clientHeight || window.innerHeight;
         renderer.setPixelRatio(Math.min(window.devicePixelRatio||1, DPRCAP));
         renderer.setSize(W,H,false);
         fitCamera();
